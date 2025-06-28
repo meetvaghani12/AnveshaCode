@@ -5,8 +5,15 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
     const data = await request.json();
-    const review = await CodeReviewService.createReview(data);
+    const review = await CodeReviewService.createReview(data, session.user.id);
     return NextResponse.json(review);
   } catch (error) {
     console.error('Error creating code review:', error);

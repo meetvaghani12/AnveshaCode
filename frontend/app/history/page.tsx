@@ -22,6 +22,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import useSWR from 'swr';
 
 interface CodeReview {
   id: string
@@ -42,11 +43,22 @@ interface SubscriptionStatus {
   remainingReviews: number;
 }
 
+const fetcher = (url: string, token: string) =>
+  fetch(url, {
+    headers: { 'Authorization': `Bearer ${token}` }
+  }).then(res => {
+    if (!res.ok) throw new Error('Failed to fetch review history');
+    return res.json();
+  });
+
 export default function ReviewHistory() {
   const { toast } = useToast()
-  const [reviews, setReviews] = useState<CodeReview[]>([])
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  const { data: reviews, error, isLoading, mutate } = useSWR(
+    token ? ['/api/code-reviews', token] : null,
+    ([url, token]) => fetcher(url, token)
+  );
   const [filteredReviews, setFilteredReviews] = useState<CodeReview[]>([])
-  const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [scoreFilter, setScoreFilter] = useState<string>("all")
@@ -55,72 +67,12 @@ export default function ReviewHistory() {
   const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus | null>(null)
 
   useEffect(() => {
-    fetchReviews()
     fetchSubscriptionStatus()
   }, [])
 
   useEffect(() => {
     filterAndSortReviews()
   }, [reviews, searchQuery, statusFilter, scoreFilter, sortBy])
-
-  const fetchReviews = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      console.log('Debug: Token from localStorage:', token ? 'Token exists' : 'No token');
-      
-      if (!token) {
-        console.log('Debug: No token found, showing error toast');
-        toast({
-          title: "Authentication Error",
-          description: "Please log in to view your reviews",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      console.log('Debug: Making request to /api/code-reviews');
-      const response = await fetch('/api/code-reviews', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      console.log('Debug: Response status:', response.status);
-      
-      if (response.status === 401) {
-        console.log('Debug: Received 401, clearing token and showing error');
-        toast({
-          title: "Session Expired",
-          description: "Please log in again",
-          variant: "destructive"
-        });
-        localStorage.removeItem('token');
-        return;
-      }
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Debug: Error response:', errorText);
-        throw new Error(`Failed to fetch reviews: ${response.statusText} - ${errorText}`);
-      }
-
-      const data = await response.json();
-      console.log('Debug: Successfully fetched reviews:', data);
-      setReviews(data);
-      setFilteredReviews(data);
-    } catch (error) {
-      console.error('Debug: Error in fetchReviews:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to load review history",
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }
 
   const fetchSubscriptionStatus = async () => {
     try {

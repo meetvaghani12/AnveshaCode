@@ -9,6 +9,7 @@ import { ArrowRight, Code, FileCode, History, Settings, BarChart } from "lucide-
 import Link from "next/link";
 import { useToast } from "@/components/ui/use-toast";
 import { useRouter } from "next/navigation";
+import useSWR from 'swr';
 
 interface CodeReview {
   id: string;
@@ -30,79 +31,53 @@ interface DashboardStats {
   recentReviews: CodeReview[];
 }
 
+const fetcher = (url: string, token: string) =>
+  fetch(url, {
+    headers: { 'Authorization': `Bearer ${token}` }
+  }).then(res => {
+    if (!res.ok) throw new Error('Failed to fetch dashboard data');
+    return res.json();
+  });
+
 export default function DashboardPage() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [stats, setStats] = useState<DashboardStats>({
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  const { data: reviews, error, isLoading, mutate } = useSWR(
+    token ? ['/api/code-reviews', token] : null,
+    ([url, token]) => fetcher(url, token)
+  );
+  const router = useRouter();
+
+  // Calculate statistics
+  let stats: DashboardStats = {
     totalReviews: 0,
     averageScore: 0,
     totalIssues: 0,
     resolvedIssues: 0,
     recentReviews: []
-  });
-  const [isLoading, setIsLoading] = useState(true);
-  const router = useRouter();
-
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
-
-  const fetchDashboardData = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        toast({
-          title: "Authentication Error",
-          description: "Please log in to view your dashboard",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      const response = await fetch('/api/code-reviews', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch dashboard data');
-      }
-
-      const reviews: CodeReview[] = await response.json();
-      
-      // Calculate statistics
-      const totalReviews = reviews.length;
-      const averageScore = reviews.length > 0 
-        ? Math.round(reviews.reduce((acc, review) => acc + review.score, 0) / reviews.length)
-        : 0;
-      const totalIssues = reviews.reduce((acc, review) => acc + review.issuesCount, 0);
-      const resolvedIssues = reviews.filter(review => review.status === 'COMPLETED')
-        .reduce((acc, review) => acc + review.issuesCount, 0);
-      
-      // Get recent reviews (last 3)
-      const recentReviews = reviews
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-        .slice(0, 3);
-
-      setStats({
-        totalReviews,
-        averageScore,
-        totalIssues,
-        resolvedIssues,
-        recentReviews
-      });
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load dashboard data",
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoading(false);
-    }
   };
+
+  if (reviews && Array.isArray(reviews)) {
+    stats.totalReviews = reviews.length;
+    stats.averageScore = reviews.length > 0
+      ? Math.round(reviews.reduce((acc, review) => acc + review.score, 0) / reviews.length)
+      : 0;
+    stats.totalIssues = reviews.reduce((acc, review) => acc + review.issuesCount, 0);
+    stats.resolvedIssues = reviews.filter((review: CodeReview) => review.status === 'COMPLETED')
+      .reduce((acc: number, review: CodeReview) => acc + review.issuesCount, 0);
+    stats.recentReviews = reviews
+      .sort((a: CodeReview, b: CodeReview) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 3);
+  }
+
+  if (error) {
+    toast({
+      title: 'Error',
+      description: error.message || 'Failed to load dashboard data',
+      variant: 'destructive',
+    });
+  }
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { CalendarIcon, Download, FileCode2, Info, RefreshCw, ArrowLeft, ChevronDown } from "lucide-react"
 import { format } from "date-fns"
 import Link from "next/link"
-
+import useSWR from 'swr'
 
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
@@ -67,58 +67,35 @@ interface AnalyticsData {
   }>;
 }
 
+const fetcher = (url: string, token: string) =>
+  fetch(url, {
+    headers: { 'Authorization': `Bearer ${token}` }
+  }).then(res => {
+    if (!res.ok) throw new Error('Failed to fetch analytics data');
+    return res.json();
+  });
+
 export default function Analytics() {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  const { data: analyticsData, error, isLoading, mutate } = useSWR(
+    token ? ['/api/analytics', token] : null,
+    ([url, token]) => fetcher(url, token)
+  );
   const [dateRange, setDateRange] = useState<{
     from: Date | undefined
     to: Date | undefined
   }>({
     from: undefined,
     to: undefined,
-  })
-  const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const { toast } = useToast()
+  });
+  const { toast } = useToast();
 
-  useEffect(() => {
-    fetchAnalyticsData()
-  }, [])
-
-  const fetchAnalyticsData = async () => {
-    try {
-      setError(null)
-      setIsLoading(true)
-      
-      const token = localStorage.getItem('token');
-      if (!token) {
-        setError('Please log in to view analytics')
-        return;
-      }
-
-      const response = await fetch('/api/analytics', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to fetch analytics data')
-      }
-
-      const data = await response.json()
-      setAnalyticsData(data)
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch analytics data'
-      setError(errorMessage)
-      toast({
-        title: "Error",
-        description: errorMessage,
-        variant: "destructive"
-      })
-    } finally {
-      setIsLoading(false)
-    }
+  if (error) {
+    toast({
+      title: 'Error',
+      description: error.message || 'Failed to load analytics data',
+      variant: 'destructive',
+    });
   }
 
   const exportData = (format: 'json' | 'csv' | 'excel') => {
@@ -274,24 +251,6 @@ export default function Analytics() {
             <RefreshCw className="h-8 w-8 text-primary" />
           </div>
           <p className="text-muted-foreground">Loading analytics data...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="space-y-4">
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-        <div className="flex justify-center">
-          <Button onClick={fetchAnalyticsData} className="gap-2">
-            <RefreshCw className="h-4 w-4" />
-            Retry
-          </Button>
         </div>
       </div>
     )
