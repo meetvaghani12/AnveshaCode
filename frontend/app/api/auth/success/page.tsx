@@ -23,7 +23,7 @@ function AuthSuccessContent() {
         description: error,
         variant: "destructive"
       })
-      setTimeout(() => router.push('/login'), 2000)
+      setTimeout(() => router.push('/signin'), 2000)
       return
     }
     
@@ -34,7 +34,7 @@ function AuthSuccessContent() {
         description: "No authentication token received",
         variant: "destructive"
       })
-      setTimeout(() => router.push('/login'), 2000)
+      setTimeout(() => router.push('/signin'), 2000)
       return
     }
     
@@ -51,13 +51,14 @@ function AuthSuccessContent() {
       }
     }
     
-    setMessage("Authentication successful! Redirecting...")
+    setMessage("Authentication successful! Redirecting to dashboard...")
     toast({
       title: "Authentication Successful",
-      description: "You have been logged in successfully",
+      description: "You have been logged in successfully. Redirecting to dashboard...",
     })
     
-    setTimeout(() => router.push('/'), 1000)
+    // Redirect to dashboard instead of home page
+    setTimeout(() => router.push('/dashboard'), 1000)
   }, [searchParams, router])
 
   return (

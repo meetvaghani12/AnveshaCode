@@ -113,7 +113,7 @@ export default function Home() {
                 <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl lg:text-6xl/none">
                   Professional Code Reviews at Your Fingertips
                 </h1>
-                <p className="mx-auto max-w-[700px] text-muted-foreground md:text-xl">
+                <p className="mx-auto max-w-[600px] text-muted-foreground md:text-xl">
                   Upload your code, get expert reviews, and improve your codebase with our AI-powered platform.
                 </p>
               </div>

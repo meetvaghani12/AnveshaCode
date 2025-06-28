@@ -18,8 +18,8 @@ interface User {
 interface AuthContextType {
   user: User | null
   isLoading: boolean
-  login: (token: string) => void
-  logout: () => void
+  login: (token: string) => Promise<void>
+  logout: () => Promise<void>
   checkAuth: () => Promise<void>
 }
 
@@ -32,8 +32,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (token: string) => {
     console.log('Auth Context: Login called with token', token ? 'Token exists' : 'No token')
+    if (!token) {
+      console.error('Auth Context: No token provided for login')
+      return
+    }
+    
     localStorage.setItem('token', token)
     await checkAuth() // Wait for checkAuth to complete
+    
+    // After successful login and user state update, redirect to dashboard
+    if (user) {
+      router.push('/dashboard')
+    }
   }
 
   const logout = async () => {
@@ -51,7 +61,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('token')
     localStorage.removeItem('user')
     setUser(null)
-    router.push('/')
+    router.push('/signin')
   }
 
   const checkAuth = async () => {
@@ -74,17 +84,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (response.user) {
         console.log('Auth Context: Setting user state:', response.user)
         setUser(response.user)
+        // Store updated user data in localStorage
+        localStorage.setItem('user', JSON.stringify(response.user))
       } else {
         console.log('Auth Context: No user in response, clearing token and user state')
         localStorage.removeItem('token')
         localStorage.removeItem('user')
         setUser(null)
+        router.push('/signin')
       }
     } catch (error) {
       console.error('Auth Context: Error fetching user profile:', error)
       localStorage.removeItem('token')
       localStorage.removeItem('user')
       setUser(null)
+      router.push('/signin')
     } finally {
       setIsLoading(false)
     }
